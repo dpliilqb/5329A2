@@ -9,6 +9,8 @@ import os
 from torch.utils.data import DataLoader
 import torch
 from sklearn.preprocessing import MultiLabelBinarizer
+from Model import Net
+import torchmetrics
 
 def load_data(path):
     with open(path) as file:
@@ -91,29 +93,19 @@ def calculate_mean_std(loader):
 def str_to_list(s):
     return list(map(int, s.split()))
 
-class CustomImageDataset(Dataset):
-    def __init__(self, img_dir, labels, transform=None):
-        """
-        Args:
-            img_dir (str): 图片存放的目录。
-            labels (list of lists): 每个图片对应的标签列表。
-            transform (callable, optional): 需要应用到每张图片的变换。
-        """
-        self.img_dir = img_dir
-        self.labels = labels
-        self.transform = transform
-        self.image_filenames = [f for f in os.listdir(img_dir) if os.path.isfile(os.path.join(img_dir, f))]
+class ImageTagsDataset(Dataset):
+    def __init__(self, dataframe):
+        # 假设dataframe已经是多热编码的格式
+        self.labels = dataframe.iloc[:, :-1].values  # 标签数据
+        self.image_ids = dataframe['ImageID'].values  # 图像ID
 
     def __len__(self):
-        return len(self.image_filenames)
+        return len(self.labels)
 
     def __getitem__(self, idx):
-        img_path = os.path.join(self.img_dir, self.image_filenames[idx])
-        image = Image.open(img_path).convert('RGB')  # 确保为 RGB 格式
-        label = torch.tensor(self.labels[idx])  # 假设标签已经是适合的格式
-        if self.transform:
-            image = self.transform(image)
-        return image, label
+        image_id = self.image_ids[idx]
+        label = torch.tensor(self.labels[idx], dtype=torch.int32)
+        return image_id, label
 
 if __name__ == "__main__":
     TRAIN_FILENAME = 'train.csv'
@@ -126,6 +118,7 @@ if __name__ == "__main__":
     test_df = test_df[["ImageID"]]
 
     train_df["Labels_list"] = train_df["Labels"].apply(str_to_list)
+    # print(train_df["Labels_list"])
     # print(train_df.head(5))
 
     # Get all label names
@@ -146,15 +139,15 @@ if __name__ == "__main__":
     # process_dataset('data', 'fixed_data', target_size=320)
 
     ## Image process
-    # target_size = 256
-    # transform_pipeline = transforms.Compose([
-    #     transforms.Resize((224, 224)),  # 调整大小到 224x224
-    #     transforms.RandomHorizontalFlip(),  # 随机水平翻转
-    #     transforms.RandomRotation(15),  # 随机旋转 15 度
-    #     transforms.ColorJitter(brightness=0.2, contrast=0.2),  # 随机改变亮度和对比度
-    #     transforms.ToTensor(),  # 转换为 PyTorch 张量
-    #     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # 标准化
-    # ])
+    target_size = 256
+    transform_pipeline = transforms.Compose([
+        transforms.Resize((224, 224)),  # 调整大小到 224x224
+        transforms.RandomHorizontalFlip(),  # 随机水平翻转
+        transforms.RandomRotation(15),  # 随机旋转 15 度
+        transforms.ColorJitter(brightness=0.2, contrast=0.2),  # 随机改变亮度和对比度
+        transforms.ToTensor(),  # 转换为 PyTorch 张量
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # 标准化
+    ])
 
     # Turn to multi-hot coding
     mlb = MultiLabelBinarizer()
@@ -164,4 +157,27 @@ if __name__ == "__main__":
     # print(encoded_train_df.head(10))
 
     # Initialize Dataloader
+    dataset = ImageTagsDataset(encoded_train_df)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=2)
+    for image_ids, labels in dataloader:
+        print("Image IDs:", image_ids)
+        print("Labels:", labels)
+        break  # 只打印一个批次的数据来查看
+
+    model = Net()
+    epochs = 10
+    f1_score = torchmetrics.F1Score(task= "multiclass",num_classes=18, average='macro')  # 适当调整参数
+
+    for epoch in range(epochs):
+        for image, label in dataloader:
+            outputs = model(image)
+            loss = model.loss(outputs, label)
+
+            model.optimizer.zero_grad()
+            loss.backward()
+            model.optimizer.step()
+
+            # 计算 F1 Score
+            f1 = f1_score(torch.softmax(outputs, dim=1), label)
+            print(f"Batch F1 Score: {f1:.4f}")
 
