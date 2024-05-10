@@ -39,7 +39,6 @@ def find_max_image_size(folder_path):
     return max_width, max_height
 
 def pad_image_to_square(image, target_size, fill_color='black'):
-    # 计算填充量
     width, height = image.size
     max_side = max(width, height)
     left_padding = (max_side - width) // 2
@@ -47,27 +46,20 @@ def pad_image_to_square(image, target_size, fill_color='black'):
     top_padding = (max_side - height) // 2
     bottom_padding = max_side - height - top_padding
 
-    # 创建填充
     padded_image = ImageOps.expand(image, border=(left_padding, top_padding, right_padding, bottom_padding), fill=fill_color)
-    # 缩放到目标尺寸
     return padded_image.resize((target_size, target_size))
 
 def process_dataset(input_folder, output_folder, target_size=300):
-    # 确保输出文件夹存在
     os.makedirs(output_folder, exist_ok=True)
 
-    # 遍历输入文件夹中的所有文件
     for image_file in os.listdir(input_folder):
-        # 构造完整的文件路径
+
         input_path = os.path.join(input_folder, image_file)
         output_path = os.path.join(output_folder, image_file)
 
-        # 只处理图像文件
         if os.path.isfile(input_path) and input_path.lower().endswith(('.png', '.jpg', '.jpeg')):
             with Image.open(input_path) as img:
-                # 填充并缩放图像
                 processed_image = pad_image_to_square(img, target_size)
-                # 保存处理后的图像
                 processed_image.save(output_path)
 
     # 调用函数，指定输入和输出文件夹路径
@@ -95,9 +87,8 @@ def str_to_list(s):
 
 class ImageTagsDataset(Dataset):
     def __init__(self, dataframe):
-        # 假设dataframe已经是多热编码的格式
-        self.labels = dataframe.iloc[:, :-1].values  # 标签数据
-        self.image_ids = dataframe['ImageID'].values  # 图像ID
+        self.labels = dataframe.iloc[:, :-1].values
+        self.image_ids = dataframe['ImageID'].values
 
     def __len__(self):
         return len(self.labels)
@@ -141,12 +132,12 @@ if __name__ == "__main__":
     ## Image process
     target_size = 256
     transform_pipeline = transforms.Compose([
-        transforms.Resize((224, 224)),  # 调整大小到 224x224
-        transforms.RandomHorizontalFlip(),  # 随机水平翻转
-        transforms.RandomRotation(15),  # 随机旋转 15 度
-        transforms.ColorJitter(brightness=0.2, contrast=0.2),  # 随机改变亮度和对比度
-        transforms.ToTensor(),  # 转换为 PyTorch 张量
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # 标准化
+        transforms.Resize((224, 224)),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomRotation(15),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
     # Turn to multi-hot coding
@@ -162,11 +153,11 @@ if __name__ == "__main__":
     for image_ids, labels in dataloader:
         print("Image IDs:", image_ids)
         print("Labels:", labels)
-        break  # 只打印一个批次的数据来查看
+        break
 
     model = Net()
     epochs = 10
-    f1_score = torchmetrics.F1Score(task= "multiclass",num_classes=18, average='macro')  # 适当调整参数
+    f1_score = torchmetrics.F1Score(task= "multiclass",num_classes=18, average='macro')
 
     for epoch in range(epochs):
         for image, label in dataloader:
@@ -177,7 +168,6 @@ if __name__ == "__main__":
             loss.backward()
             model.optimizer.step()
 
-            # 计算 F1 Score
             f1 = f1_score(torch.softmax(outputs, dim=1), label)
             print(f"Batch F1 Score: {f1:.4f}")
 
