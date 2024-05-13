@@ -86,17 +86,28 @@ def str_to_list(s):
     return list(map(int, s.split()))
 
 class ImageTagsDataset(Dataset):
-    def __init__(self, dataframe):
+    def __init__(self, dataframe, image_folder, target_size = 256):
         self.labels = dataframe.iloc[:, :-1].values
         self.image_ids = dataframe['ImageID'].values
+        self.image_folder = image_folder
+        self.target_size = target_size
+        self.transform = transforms.Compose([
+            transforms.Resize((self.target_size, self.target_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        ])
 
     def __len__(self):
         return len(self.labels)
 
     def __getitem__(self, idx):
         image_id = self.image_ids[idx]
-        label = torch.tensor(self.labels[idx], dtype=torch.int32)
-        return image_id, label
+        image_path = f"{self.image_folder}/{image_id}"
+        image = Image.open(image_path).convert('RGB')
+        image = self.transform(image)
+
+        labels = torch.tensor(self.labels[idx], dtype=torch.float32)
+        return image, labels
 
 if __name__ == "__main__":
     TRAIN_FILENAME = 'train.csv'
@@ -130,15 +141,17 @@ if __name__ == "__main__":
     # process_dataset('data', 'fixed_data', target_size=320)
 
     ## Image process
-    target_size = 256
-    transform_pipeline = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(15),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
+    # target_size = 256
+    # transform_pipeline = transforms.Compose([
+    #     transforms.Resize((224, 224)),
+    #     transforms.RandomHorizontalFlip(),
+    #     transforms.RandomRotation(15),
+    #     transforms.ColorJitter(brightness=0.2, contrast=0.2),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    # ])
+    # train_df["Image_data"] = transform_pipeline(train_df["ImageID"])
+    # print(train_df.head(3))
 
     # Turn to multi-hot coding
     mlb = MultiLabelBinarizer()
@@ -148,26 +161,26 @@ if __name__ == "__main__":
     # print(encoded_train_df.head(10))
 
     # Initialize Dataloader
-    dataset = ImageTagsDataset(encoded_train_df)
+    dataset = ImageTagsDataset(encoded_train_df, "fixed_data")
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=2)
-    for image_ids, labels in dataloader:
-        print("Image IDs:", image_ids)
-        print("Labels:", labels)
-        break
-
+    # print(dataset.__getitem__(1))
+    print(torch.cuda.is_available() )
     model = Net()
-    epochs = 10
-    f1_score = torchmetrics.F1Score(task= "multiclass",num_classes=18, average='macro')
+    model.to(model.device)
+    max_F1 = 0.0
+    # model.init_weights()
+    epochs = 1
+    f1_score = torchmetrics.F1Score(task="multiclass" , num_classes=18, average='macro').to(model.device)
 
     for epoch in range(epochs):
         for image, label in dataloader:
-            outputs = model(image)
-            loss = model.loss(outputs, label)
+            image, label = image.to(model.device), label.to(model.device)
+            loss, pred = model.train_step(image, label)
 
-            model.optimizer.zero_grad()
-            loss.backward()
-            model.optimizer.step()
-
-            f1 = f1_score(torch.softmax(outputs, dim=1), label)
-            print(f"Batch F1 Score: {f1:.4f}")
-
+            pred = pred.to(model.device)
+            label = label.to(model.device)
+            f1 = f1_score(pred, label)
+            if f1 > max_F1:
+                max_F1 = f1
+            print(f"loss: {loss.item():.4f}; Batch F1 Score: {f1:.4f}; Highest F1 Score: {max_F1:.4f}")
+    #
