@@ -130,6 +130,13 @@ if __name__ == "__main__":
     labels_list = list(unique_numbers)
     # print(labels_list)
 
+    # Labels insights
+    # all_categories = set()
+    # train_df["Labels_list"].apply(lambda x: all_categories.update(x))
+    # all_categories = sorted(list(all_categories))
+    # print("All Classes:", all_categories)
+    # [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19]
+
     ## Dataset insights
     # print(f"Train null in Data:\n{train_df.isna().sum()}")
     # print(f"Test null in Data:\n{test_df.isna().sum()}")
@@ -183,4 +190,13 @@ if __name__ == "__main__":
             if f1 > max_F1:
                 max_F1 = f1
             print(f"loss: {loss.item():.4f}; Batch F1 Score: {f1:.4f}; Highest F1 Score: {max_F1:.4f}")
-    #
+
+    idx_to_class = {0: '1', 1: '2', 2: '3', 3: '4', 4: '5', 5: '6', 6: '7', 7: '8', 8: '9', 9: '10', 10: '11', 11: '13', 12: '14', 13: '15', 14: '16', 15: '17', 16: '18', 17: '19'}
+    test_set = ImageTagsDataset(test_df, "fixed_data")
+    test_dataloader = DataLoader(test_set, batch_size=32, shuffle=True, num_workers=2)
+    for image, label in test_dataloader:
+        image, label = image.to(model.device), label.to(model.device)
+        loss, pred = model.test_step(image, label)
+        predicted_labels = pred.argmax(dim=1)
+        predicted_class_names = [idx_to_class[label.item()] for label in predicted_labels]
+        print(predicted_class_names)
