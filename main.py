@@ -98,11 +98,11 @@ class ImageTagsDataset(Dataset):
         self.image_folder = image_folder
         self.target_size = target_size
         self.transform = transforms.Compose([
-            transforms.Resize((self.target_size, self.target_size)),
+            # transforms.Resize((self.target_size, self.target_size)),
             transforms.RandomResizedCrop(224),
-            transforms.RandomHorizontalFlip(),
+            # transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
 
     def __len__(self):
@@ -212,7 +212,7 @@ if __name__ == "__main__":
     # 找到包含最多类别的行
     max_category_rows = train_df[train_df['Labels_list'].apply(lambda x: max_category in x)]
     # 随机选择需要保留的样本
-    random_indices = random.sample(list(max_category_rows.index), mean_count)
+    random_indices = random.sample(list(max_category_rows.index), 2*mean_count)
     undersampled_max_category_rows = train_df.loc[random_indices]
     # 找到其余的行
     other_rows = train_df[~train_df.index.isin(max_category_rows.index)]
@@ -267,12 +267,12 @@ if __name__ == "__main__":
     # print(dataset.__getitem__(1))
     # print(torch.cuda.is_available() )
     num_classes = 18
-    threshold = 0.5
-    model = Net(in_channels=3, num_classes=num_classes, threshold=threshold, learning_rate=0.05, optimizer='Adam')
+    threshold = 0.8
+    model = Net(in_channels=3, num_classes=num_classes, threshold=threshold, learning_rate=0.0001, optimizer='Adam')
     model.to(model.device)
     max_F1 = 0.0
     model.init_weights()
-    epochs = 5
+    epochs = 50
     f1_score = F1Score(task="multiclass", num_classes=num_classes, average='macro')
     start_time = time()
     for epoch in range(epochs):

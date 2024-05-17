@@ -14,7 +14,7 @@ if __name__ == '__main__':
                     12: '14', 13: '15', 14: '16', 15: '17', 16: '18', 17: '19'}
     test_set = ImageTagsDataset(test_df, "fixed_data")
     test_dataloader = DataLoader(test_set, batch_size=32, shuffle=True, num_workers=4)
-    threshold = 0.1
+    threshold = 0.15
     model = Net()
     model.load_state_dict(torch.load("Models/model_1.pth"))
     model.to(model.device)
